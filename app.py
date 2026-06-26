@@ -1,36 +1,164 @@
 import streamlit as st
 from screener import analyze_resume
+import re
 
-st.set_page_config(page_title="AI Resume Screener", page_icon="📄")
+st.set_page_config(page_title="AI Resume Screener", page_icon="📄", layout="wide")
 
-st.title("📄 AI Resume Screener")
-st.write("Paste a job description and your resume to see how well you match.")
+# Custom CSS
+st.markdown("""
+<style>
+    .main { background-color: #0f1117; }
+    .stApp { background: linear-gradient(135deg, #0f1117 0%, #1a1f2e 100%); }
+    .title { 
+        text-align: center; 
+        font-size: 3rem; 
+        font-weight: 800;
+        background: linear-gradient(90deg, #6366f1, #8b5cf6, #06b6d4);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+    }
+    .subtitle {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+    }
+    .score-box {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border-radius: 20px;
+        padding: 2rem;
+        text-align: center;
+        margin: 1rem 0;
+    }
+    .score-number {
+        font-size: 5rem;
+        font-weight: 900;
+        color: white;
+    }
+    .score-label {
+        color: #e2e8f0;
+        font-size: 1.2rem;
+    }
+    .section-box {
+        background: #1e2530;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-left: 4px solid #6366f1;
+    }
+    .strength-box {
+        background: #0f2417;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-left: 4px solid #22c55e;
+    }
+    .missing-box {
+        background: #2a1a1a;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-left: 4px solid #ef4444;
+    }
+    .suggestion-box {
+        background: #1a1f0f;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border-left: 4px solid #f59e0b;
+    }
+    .stTextArea textarea {
+        background-color: #1e2530 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 10px !important;
+    }
+    .stButton button {
+        background: linear-gradient(90deg, #6366f1, #8b5cf6) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 0.75rem 2rem !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        width: 100% !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
+# Header
+st.markdown('<p class="title">📄 AI Resume Screener</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">Paste a job description and your resume to get an instant AI-powered match analysis</p>', unsafe_allow_html=True)
+
+# Input columns
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Job Description")
+    st.markdown("### 💼 Job Description")
     job_description = st.text_area(
-        "Paste the job posting here",
+        "job",
         height=300,
-        placeholder="e.g. We are looking for a Machine Learning Engineer..."
+        placeholder="Paste the job posting here...",
+        label_visibility="collapsed"
     )
 
 with col2:
-    st.subheader("Your Resume")
+    st.markdown("### 📝 Your Resume")
     resume_text = st.text_area(
-        "Paste your resume text here",
+        "resume",
         height=300,
-        placeholder="e.g. John Doe | john@email.com | Skills: Python, SQL..."
+        placeholder="Paste your resume text here...",
+        label_visibility="collapsed"
     )
 
-if st.button("🔍 Analyze Match", type="primary"):
+# Analyze button
+col_btn = st.columns([1,2,1])[1]
+with col_btn:
+    analyze = st.button("🔍 Analyze My Resume")
+
+if analyze:
     if not job_description or not resume_text:
-        st.warning("Please fill in both fields first.")
+        st.warning("⚠️ Please fill in both fields first.")
     else:
-        with st.spinner("Analyzing your resume..."):
+        with st.spinner("🤖 AI is analyzing your resume..."):
             result = analyze_resume(resume_text, job_description)
-        
-        st.success("Analysis complete!")
+
+        # Extract score
+        score_match = re.search(r'MATCH SCORE:\s*(\d+)', result)
+        score = int(score_match.group(1)) if score_match else 0
+
+        # Score display
         st.markdown("---")
-        st.markdown(result)
+        col_score = st.columns([1,1,1])[1]
+        with col_score:
+            color = "#22c55e" if score >= 70 else "#f59e0b" if score >= 40 else "#ef4444"
+            st.markdown(f"""
+            <div class="score-box">
+                <div class="score-number" style="color:{color}">{score}</div>
+                <div class="score-label">Match Score out of 100</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Progress bar
+        st.progress(score/100)
+
+        # Parse and display sections
+        sections = {
+            "STRENGTHS": ("strength-box", "✅ Strengths", "#22c55e"),
+            "MISSING KEYWORDS": ("missing-box", "❌ Missing Keywords", "#ef4444"),
+            "SUGGESTIONS": ("suggestion-box", "💡 Suggestions", "#f59e0b"),
+            "SUMMARY": ("section-box", "📋 Summary", "#6366f1"),
+        }
+
+        for key, (box_class, title, color) in sections.items():
+            pattern = rf'{key}:(.*?)(?=\n[A-Z]|\Z)'
+            match = re.search(pattern, result, re.DOTALL)
+            if match:
+                content = match.group(1).strip()
+                st.markdown(f"""
+                <div class="{box_class}">
+                    <h3 style="color:{color}; margin-top:0">{title}</h3>
+                    <p style="color:#e2e8f0; white-space: pre-line">{content}</p>
+                </div>
+                """, unsafe_allow_html=True)
