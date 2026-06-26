@@ -2,6 +2,8 @@ import streamlit as st
 from screener import analyze_resume
 import re
 import time
+import threading
+import fitz  # pymupdf
 
 st.set_page_config(page_title="AI Resume Screener", page_icon="📄", layout="wide")
 
@@ -77,6 +79,14 @@ st.markdown("""
         margin: 1rem 0;
         border: 1px solid #334155;
     }
+    .upload-box {
+        background: #1e2530;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 2px dashed #6366f1;
+        text-align: center;
+    }
     .stTextArea textarea {
         background-color: #1e2530 !important;
         color: #e2e8f0 !important;
@@ -98,7 +108,7 @@ st.markdown("""
 
 # Header
 st.markdown('<p class="title">📄 AI Resume Screener</p>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Paste a job description and your resume to get an instant AI-powered match analysis</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">Upload your resume or paste text to get an instant AI-powered match analysis</p>', unsafe_allow_html=True)
 
 # Input columns
 col1, col2 = st.columns(2)
@@ -114,12 +124,38 @@ with col1:
 
 with col2:
     st.markdown("### 📝 Your Resume")
-    resume_text = st.text_area(
-        "resume",
-        height=300,
-        placeholder="Paste your resume text here...",
+    
+    # Toggle between upload and paste
+    input_method = st.radio(
+        "Input method",
+        ["📤 Upload PDF", "✏️ Paste Text"],
+        horizontal=True,
         label_visibility="collapsed"
     )
+    
+    resume_text = ""
+    
+    if input_method == "📤 Upload PDF":
+        uploaded_file = st.file_uploader(
+            "Upload your resume PDF",
+            type=["pdf"],
+            label_visibility="collapsed"
+        )
+        if uploaded_file:
+            # Extract text from PDF
+            pdf_bytes = uploaded_file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            resume_text = ""
+            for page in doc:
+                resume_text += page.get_text()
+            st.success(f"✅ PDF uploaded! ({len(resume_text)} characters extracted)")
+    else:
+        resume_text = st.text_area(
+            "resume",
+            height=250,
+            placeholder="Paste your resume text here...",
+            label_visibility="collapsed"
+        )
 
 # Analyze button
 col_btn = st.columns([1,2,1])[1]
@@ -149,8 +185,6 @@ if analyze:
             </div>
             """, unsafe_allow_html=True)
 
-        # Show animated messages while waiting for result
-        import threading
         result_container = [None]
         done_flag = [False]
 
