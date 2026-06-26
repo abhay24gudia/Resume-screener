@@ -1,6 +1,7 @@
 import streamlit as st
 from screener import analyze_resume
 import re
+import time
 
 st.set_page_config(page_title="AI Resume Screener", page_icon="📄", layout="wide")
 
@@ -68,6 +69,14 @@ st.markdown("""
         margin: 1rem 0;
         border-left: 4px solid #f59e0b;
     }
+    .loading-box {
+        background: #1e2530;
+        border-radius: 15px;
+        padding: 2rem;
+        text-align: center;
+        margin: 1rem 0;
+        border: 1px solid #334155;
+    }
     .stTextArea textarea {
         background-color: #1e2530 !important;
         color: #e2e8f0 !important;
@@ -121,8 +130,46 @@ if analyze:
     if not job_description or not resume_text:
         st.warning("⚠️ Please fill in both fields first.")
     else:
-        with st.spinner("🤖 AI is analyzing your resume..."):
-            result = analyze_resume(resume_text, job_description)
+        # Animated loading screen
+        loading_messages = [
+            ("🔍", "Reading your resume..."),
+            ("💼", "Scanning the job description..."),
+            ("🧠", "AI is thinking hard..."),
+            ("📊", "Calculating your match score..."),
+            ("✨", "Polishing the results..."),
+        ]
+
+        loading_placeholder = st.empty()
+
+        def show_loading(emoji, message):
+            loading_placeholder.markdown(f"""
+            <div class="loading-box">
+                <div style="font-size: 3rem">{emoji}</div>
+                <div style="color: #e2e8f0; font-size: 1.3rem; margin-top: 1rem">{message}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Show animated messages while waiting for result
+        import threading
+        result_container = [None]
+        done_flag = [False]
+
+        def fetch_result():
+            result_container[0] = analyze_resume(resume_text, job_description)
+            done_flag[0] = True
+
+        thread = threading.Thread(target=fetch_result)
+        thread.start()
+
+        i = 0
+        while not done_flag[0]:
+            emoji, msg = loading_messages[i % len(loading_messages)]
+            show_loading(emoji, msg)
+            time.sleep(0.8)
+            i += 1
+
+        loading_placeholder.empty()
+        result = result_container[0]
 
         # Extract score
         score_match = re.search(r'MATCH SCORE:\s*(\d+)', result)
